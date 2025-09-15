@@ -3,29 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Angle Measurement Tool</title>
+    <title>Touch Angle Measurement</title>
     <style>
         * {
-            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
             color: #333;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            line-height: 1.6;
             min-height: 100vh;
             padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
             overflow: hidden;
         }
         
@@ -37,13 +41,13 @@
         }
         
         h1 {
-            font-size: 2.2rem;
+            font-size: 1.8rem;
             margin-bottom: 10px;
         }
         
         .instructions {
-            background: #f8f9fa;
             padding: 20px;
+            background: #f8f9fa;
             border-bottom: 1px solid #eaeaea;
         }
         
@@ -58,22 +62,13 @@
         
         .app-content {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             padding: 20px;
         }
         
         .camera-section {
-            flex: 1;
-            min-width: 300px;
-            margin-right: 20px;
-        }
-        
-        .data-section {
-            flex: 1;
-            min-width: 300px;
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
+            width: 100%;
+            margin-bottom: 20px;
         }
         
         #camera-container {
@@ -103,7 +98,7 @@
         
         .controls {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 10px;
             margin-top: 20px;
         }
@@ -113,19 +108,26 @@
             background: #4a6fa5;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            transition: background 0.3s;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
         button:hover {
             background: #385d8a;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
         }
         
         button:disabled {
             background: #cccccc;
             cursor: not-allowed;
+            transform: none;
         }
         
         #start-btn {
@@ -144,8 +146,15 @@
             background: #b71c1c;
         }
         
-        #data-display {
+        .data-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
             margin-top: 20px;
+        }
+        
+        #data-display {
+            margin-top: 15px;
         }
         
         .angle-display {
@@ -181,16 +190,17 @@
             background: #f8f9fa;
             color: #666;
             font-size: 0.9rem;
+            margin-top: 20px;
+            border-radius: 0 0 20px 20px;
         }
         
-        @media (max-width: 768px) {
-            .app-content {
-                flex-direction: column;
+        @media (max-width: 600px) {
+            .controls {
+                grid-template-columns: 1fr 1fr;
             }
             
-            .camera-section {
-                margin-right: 0;
-                margin-bottom: 20px;
+            h1 {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -198,17 +208,18 @@
 <body>
     <div class="container">
         <header>
-            <h1>Camera Angle Measurement Tool</h1>
-            <p>Measure angles between points placed on your camera feed</p>
+            <h1>Touch Angle Measurement Tool</h1>
+            <p>Measure angles by placing points on your camera feed</p>
         </header>
         
         <div class="instructions">
             <h2>How to Use:</h2>
             <ol>
                 <li>Allow camera access when prompted</li>
-                <li>Click on the camera feed to place points (minimum 3 points)</li>
+                <li>Touch the camera feed to place points (minimum 3 points)</li>
+                <li>Points will remain until you clear them</li>
                 <li>Click "Start Recording" to capture data for 1 second</li>
-                <li>Use "Save Data" to download your measurements as JSON</li>
+                <li>Use "Save Data" to download your measurements</li>
             </ol>
         </div>
         
@@ -239,7 +250,7 @@
         </div>
         
         <footer>
-            <p>Angle Measurement Tool &copy; 2023 | Refresh the page to reset the application</p>
+            <p>Touch the camera feed to place measurement points</p>
         </footer>
     </div>
 
@@ -410,14 +421,12 @@
             state.recordedData = [];
             startBtn.disabled = true;
             startBtn.textContent = 'Recording...';
-            startBtn.classList.add('recording');
             
             // Record for 1 second
             setTimeout(() => {
                 state.isRecording = false;
                 startBtn.disabled = false;
                 startBtn.textContent = 'Start Recording (1s)';
-                startBtn.classList.remove('recording');
                 alert(`Recorded ${state.recordedData.length} measurements`);
             }, 1000);
         });
@@ -465,16 +474,20 @@
             dataDisplay.innerHTML = '<p>Place at least 3 points to see angle measurements</p>';
         });
 
-        // Handle canvas clicks to select/move points
-        overlay.addEventListener('click', (e) => {
+        // Handle touch events to place points
+        overlay.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling when touching the canvas
+            
             const rect = overlay.getBoundingClientRect();
             const scaleX = overlay.width / rect.width;
             const scaleY = overlay.height / rect.height;
             
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
+            // Get the first touch point
+            const touch = e.touches[0];
+            const x = (touch.clientX - rect.left) * scaleX;
+            const y = (touch.clientY - rect.top) * scaleY;
             
-            // Check if clicked on a point
+            // Check if touched on an existing point
             for (const point of state.points) {
                 const distance = Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2));
                 if (distance <= 12) {
@@ -484,7 +497,7 @@
                 }
             }
             
-            // If not clicked on a point, add a new one
+            // If not touched on a point, add a new one
             addPoint(x, y);
         });
 
