@@ -218,7 +218,7 @@
                 <li>Allow camera access when prompted</li>
                 <li>Touch the camera feed to place points (minimum 3 points)</li>
                 <li>Points will remain until you clear them</li>
-                <li>Click "Start Recording" to capture data for 1 second</li>
+                <li>Recording starts automatically when you place points</li>
                 <li>Use "Save Data" to download your measurements</li>
             </ol>
         </div>
@@ -231,10 +231,7 @@
                 </div>
                 
                 <div class="controls">
-                    <button id="start-btn">Start Recording (1s)</button>
-                    <button id="add-point-btn">Add Point</button>
-                    <button id="delete-point-btn">Delete Selected</button>
-                    <button id="clear-all-btn">Clear All</button>
+                    <button id="clear-all-btn">Clear All Points</button>
                     <button id="save-btn">Save Data</button>
                 </div>
             </div>
@@ -242,6 +239,7 @@
             <div class="data-section">
                 <h2>Measurements</h2>
                 <div class="point-count">Points placed: <span id="point-count">0</span></div>
+                <div class="recording-status">Status: <span id="status">Ready</span></div>
                 
                 <div id="data-display">
                     <p>Place at least 3 points to see angle measurements</p>
@@ -258,22 +256,20 @@
         // App state
         const state = {
             points: [],
-            selectedPoint: null,
             isRecording: false,
             recordedData: [],
-            pointCounter: 1
+            pointCounter: 1,
+            recordingInterval: null
         };
 
         // DOM elements
         const cameraView = document.getElementById('camera-view');
         const overlay = document.getElementById('overlay');
-        const startBtn = document.getElementById('start-btn');
-        const addPointBtn = document.getElementById('add-point-btn');
-        const deletePointBtn = document.getElementById('delete-point-btn');
         const clearAllBtn = document.getElementById('clear-all-btn');
         const saveBtn = document.getElementById('save-btn');
         const dataDisplay = document.getElementById('data-display');
         const pointCountElement = document.getElementById('point-count');
+        const statusElement = document.getElementById('status');
         const ctx = overlay.getContext('2d');
 
         // Initialize camera
@@ -296,17 +292,6 @@
             }
         }
 
-        // Add point at center of screen
-        addPointBtn.addEventListener('click', () => {
-            if (overlay.width) {
-                const x = overlay.width / 2;
-                const y = overlay.height / 2;
-                addPoint(x, y);
-            } else {
-                alert('Please wait for camera to initialize first');
-            }
-        });
-
         // Add point function
         function addPoint(x, y) {
             const point = {
@@ -320,6 +305,11 @@
             updatePointCount();
             drawPointsAndLines();
             calculateAngles();
+            
+            // Start recording if we have at least 3 points
+            if (state.points.length >= 3 && !state.isRecording) {
+                startRecording();
+            }
         }
 
         // Update point count display
@@ -352,7 +342,7 @@
             state.points.forEach(point => {
                 ctx.beginPath();
                 ctx.arc(point.x, point.y, 12, 0, Math.PI * 2);
-                ctx.fillStyle = point === state.selectedPoint ? '#ffeb3b' : '#f44336';
+                ctx.fillStyle = '#f44336';
                 ctx.fill();
                 
                 // Draw label
@@ -395,46 +385,86 @@
                         <br><small>Between ${p1.label}-${p2.label}-${p3.label}</small>
                     </div>
                 `;
-                
-                // Record if we're in recording mode
-                if (state.isRecording) {
-                    state.recordedData.push({
-                        timestamp: Date.now(),
-                        points: [...state.points],
-                        angle: angleDeg,
-                        anglePoint: p2.label
-                    });
-                }
             }
             
             dataDisplay.innerHTML = anglesHTML;
         }
 
-        // Start recording for 1 second
-        startBtn.addEventListener('click', async () => {
-            if (state.points.length < 3) {
-                alert('Place at least 3 points before recording');
-                return;
-            }
-            
+        // Start recording function
+        function startRecording() {
             state.isRecording = true;
             state.recordedData = [];
-            startBtn.disabled = true;
-            startBtn.textContent = 'Recording...';
+            statusElement.textContent = 'Recording...';
             
-            // Record for 1 second
+            // Record data every 100ms for 1 second
+            let recordingTime = 0;
+            state.recordingInterval = setInterval(() => {
+                // Capture current state
+                state.recordedData.push({
+                    timestamp: Date.now(),
+                    points: [...state.points],
+                    angles: calculateAllAngles()
+                });
+                
+                recordingTime += 100;
+                if (recordingTime >= 1000) {
+                    stopRecording();
+                }
+            }, 100);
+        }
+
+        // Calculate all angles for recording
+        function calculateAllAngles() {
+            const angles = [];
+            
+            if (state.points.length < 3) return angles;
+            
+            for (let i = 1; i < state.points.length - 1; i++) {
+                const p1 = state.points[i - 1];
+                const p2 = state.points[i];
+                const p3 = state.points[i + 1];
+                
+                // Calculate vectors
+                const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+                const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+                
+                // Calculate angle
+                const dot = v1.x * v2.x + v1.y * v2.y;
+                const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+                const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+                const angleRad = Math.acos(dot / (mag1 * mag2));
+                const angleDeg = angleRad * (180 / Math.PI);
+                
+                angles.push({
+                    angle: angleDeg,
+                    vertex: p2.label,
+                    between: `${p1.label}-${p2.label}-${p3.label}`
+                });
+            }
+            
+            return angles;
+        }
+
+        // Stop recording function
+        function stopRecording() {
+            if (state.recordingInterval) {
+                clearInterval(state.recordingInterval);
+                state.recordingInterval = null;
+            }
+            
+            state.isRecording = false;
+            statusElement.textContent = 'Recording complete';
+            
+            // Notify user
             setTimeout(() => {
-                state.isRecording = false;
-                startBtn.disabled = false;
-                startBtn.textContent = 'Start Recording (1s)';
-                alert(`Recorded ${state.recordedData.length} measurements`);
-            }, 1000);
-        });
+                statusElement.textContent = 'Ready';
+            }, 2000);
+        }
 
         // Save data function
         saveBtn.addEventListener('click', () => {
             if (state.recordedData.length === 0) {
-                alert('No data to save. Record some measurements first.');
+                alert('No data to save. Place points to record measurements first.');
                 return;
             }
             
@@ -450,28 +480,18 @@
             document.body.removeChild(link);
         });
 
-        // Delete selected point
-        deletePointBtn.addEventListener('click', () => {
-            if (state.selectedPoint) {
-                const index = state.points.indexOf(state.selectedPoint);
-                if (index > -1) {
-                    state.points.splice(index, 1);
-                    state.selectedPoint = null;
-                    updatePointCount();
-                    drawPointsAndLines();
-                    calculateAngles();
-                }
-            }
-        });
-
         // Clear all points
         clearAllBtn.addEventListener('click', () => {
             state.points = [];
-            state.selectedPoint = null;
             state.pointCounter = 1;
             updatePointCount();
             ctx.clearRect(0, 0, overlay.width, overlay.height);
             dataDisplay.innerHTML = '<p>Place at least 3 points to see angle measurements</p>';
+            
+            // Stop recording if in progress
+            if (state.isRecording) {
+                stopRecording();
+            }
         });
 
         // Handle touch events to place points
@@ -487,17 +507,7 @@
             const x = (touch.clientX - rect.left) * scaleX;
             const y = (touch.clientY - rect.top) * scaleY;
             
-            // Check if touched on an existing point
-            for (const point of state.points) {
-                const distance = Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2));
-                if (distance <= 12) {
-                    state.selectedPoint = point;
-                    drawPointsAndLines();
-                    return;
-                }
-            }
-            
-            // If not touched on a point, add a new one
+            // Add a new point
             addPoint(x, y);
         });
 
@@ -506,4 +516,3 @@
     </script>
 </body>
 </html>
-
